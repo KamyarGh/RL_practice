@@ -25,6 +25,8 @@ def main():
     parser.add_argument("--max_timesteps", type=int)
     parser.add_argument('--num_rollouts', type=int, default=20,
                         help='Number of expert roll outs')
+    parser.add_argument('--save_path', type=str, default=None,
+                        help='The path to save the expert rollouts to')
     args = parser.parse_args()
 
     print('loading and building expert policy')
@@ -43,14 +45,16 @@ def main():
         actions = []
         for i in range(args.num_rollouts):
             print('iter', i)
+            iter_obs = []
+            iter_actions = []
             obs = env.reset()
             done = False
             totalr = 0.
             steps = 0
             while not done:
                 action = policy_fn(obs[None,:])
-                observations.append(obs)
-                actions.append(action)
+                iter_obs.append(obs)
+                iter_actions.append(action)
                 obs, r, done, _ = env.step(action)
                 totalr += r
                 steps += 1
@@ -60,6 +64,8 @@ def main():
                 if steps >= max_steps:
                     break
             returns.append(totalr)
+            observations.append(iter_obs)
+            actions.append(iter_actions)
 
         print('returns', returns)
         print('mean return', np.mean(returns))
@@ -67,6 +73,8 @@ def main():
 
         expert_data = {'observations': np.array(observations),
                        'actions': np.array(actions)}
+        if args.save_path is not None:
+            pickle.dump(expert_data, open(args.save_path, 'wb'))
 
 if __name__ == '__main__':
     main()
