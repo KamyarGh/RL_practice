@@ -7,6 +7,8 @@ import tensorflow                as tf
 import tensorflow.contrib.layers as layers
 from collections import namedtuple
 from dqn_utils import *
+from scipy.stats import bernoulli
+from numpy.random import randint
 
 OptimizerSpec = namedtuple("OptimizerSpec", ["constructor", "kwargs", "lr_schedule"])
 
@@ -128,6 +130,20 @@ def learn(env,
     ######
     
     # YOUR CODE HERE
+    Q = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
+    Q_target = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
+
+    # PBUG: axis
+    Y = rew_t_ph + done_mask_ph * gamma * tf.reduce_max(Q_target, axis=1)
+
+    one_hot_act = tf.one_hot(act_t_ph, num_actions)
+    Q_a = tf.reduce_sum(Q * one_hot_act, axis=1)
+
+    total_error = tf.reduce_mean(tf.square(Y - Q_a))
+
+    # Make the collections of variables
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
 
     ######
 
@@ -195,6 +211,25 @@ def learn(env,
         #####
         
         # YOUR CODE HERE
+        obs_idx = replay_buffer.store_frame(last_obs)
+
+        if model_initialized:
+            enc_obs = np.expand_dims(replay_buffer.encode_recent_observation(), axis=0)
+            action_values = session.run(Q, feed_dict={obs_t_ph: enc_obs})
+            a = np.argmax(action_values)
+
+            # epsilon-greedy policy
+            eps = exploration.value(t)
+            if bernoulli.rvs(eps):
+                a = randint(num_actions)
+        else:
+            a = randint(num_actions)
+
+        # perform the action and get feedback from environment
+        last_obs, reward, done, info = env.step(a)
+        replay_buffer.store_effect(obs_idx, a, reward, done)
+        if done:
+            last_obs = env.reset()
 
         #####
 
@@ -216,10 +251,10 @@ def learn(env,
             # next observations, and done indicator).
             # 3.b: initialize the model if it has not been initialized yet; to do
             # that, call
-            #    initialize_interdependent_variables(session, tf.global_variables(), {
-            #        obs_t_ph: obs_t_batch,
-            #        obs_tp1_ph: obs_tp1_batch,
-            #    })
+               # initialize_interdependent_variables(session, tf.global_variables(), {
+               #     obs_t_ph: obs_t_batch,
+               #     obs_tp1_ph: obs_tp1_batch,
+               # })
             # where obs_t_batch and obs_tp1_batch are the batches of observations at
             # the current and next time step. The boolean variable model_initialized
             # indicates whether or not the model has been initialized.
@@ -245,6 +280,33 @@ def learn(env,
             #####
             
             # YOUR CODE HERE
+
+            # 3.a
+            obs_batch, act_batch, rew_batch, next_obs_batch, done_mask = replay_buffer.sample(batch_size)
+
+            # 3.b
+            if not model_initialized:
+                initialize_interdependent_variables(session, tf.global_variables(), {
+                    obs_t_ph: obs_t_batch,
+                    obs_tp1_ph: obs_tp1_batch,
+                })
+                model_initialized = True
+
+            # 3.c
+            session.run(
+                train_fn,
+                feed_dict={
+                    obs_t_ph: obs_batch,
+                    act_t_ph: act_batch,
+                    rew_t_ph: rew_batch,
+                    obs_tp1_ph: next_obs_batch,
+                    done_mask_ph: done_mask
+                }
+            )
+
+            # 3.d
+            if t % target_update_freq == 0:
+                session.run(update_target_fn)
 
             #####
 
