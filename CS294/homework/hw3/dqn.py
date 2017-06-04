@@ -287,8 +287,8 @@ def learn(env,
             # 3.b
             if not model_initialized:
                 initialize_interdependent_variables(session, tf.global_variables(), {
-                    obs_t_ph: obs_t_batch,
-                    obs_tp1_ph: obs_tp1_batch,
+                    obs_t_ph: obs_batch,
+                    obs_tp1_ph: next_obs_batch,
                 })
                 model_initialized = True
 
