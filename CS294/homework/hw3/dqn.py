@@ -300,7 +300,8 @@ def learn(env,
                     act_t_ph: act_batch,
                     rew_t_ph: rew_batch,
                     obs_tp1_ph: next_obs_batch,
-                    done_mask_ph: done_mask
+                    done_mask_ph: done_mask,
+                    learning_rate: optimizer_spec.lr_schedule.value(t)
                 }
             )
 
