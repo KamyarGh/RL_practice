@@ -11,6 +11,7 @@ import dqn
 from dqn_utils import *
 from atari_wrappers import *
 
+import argparse
 
 def atari_model(img_in, num_actions, scope, reuse=False):
     # as described in https://storage.googleapis.com/deepmind-data/assets/papers/DeepMindNature14236Paper.pdf
@@ -30,7 +31,8 @@ def atari_model(img_in, num_actions, scope, reuse=False):
 
 def atari_learn(env,
                 session,
-                num_timesteps):
+                num_timesteps,
+                exper_name=None):
     # This is just a rough estimate
     num_iterations = float(num_timesteps) / 4.0
 
@@ -52,6 +54,7 @@ def atari_learn(env,
         # which is different from the number of steps in the underlying env
         return get_wrapper_by_name(env, "Monitor").get_total_steps() >= num_timesteps
 
+    # default exploration schedule
     exploration_schedule = PiecewiseSchedule(
         [
             (0, 1.0),
@@ -59,6 +62,38 @@ def atari_learn(env,
             (num_iterations / 2, 0.01),
         ], outside_value=0.01
     )
+    # # no exploration
+    # exploration_schedule = PiecewiseSchedule(
+    #     [
+    #         (0, 0),
+    #         (num_iterations, 0),
+    #     ], outside_value=0
+    # )
+    # # Only explore in beginning
+    # exploration_schedule = PiecewiseSchedule(
+    #     [
+    #         (0, 1.0),
+    #         (1e6, 0.1),
+    #         (1e6+2, 0),
+    #         (num_iterations, 0),
+    #     ], outside_value=0
+    # )
+    # exploration_schedule = PiecewiseSchedule(
+    #     [
+    #         (0, 0.5),
+    #         (1e6, 0.1),
+    #         (1e6+2, 0),
+    #         (num_iterations, 0),
+    #     ], outside_value=0
+    # )
+    # exploration_schedule = PiecewiseSchedule(
+    #     [
+    #         (0, 0.1),
+    #         (1e6, 0.1),
+    #         (1e6+2, 0),
+    #         (num_iterations, 0),
+    #     ], outside_value=0
+    # )
 
     dqn.learn(
         env,
@@ -116,7 +151,7 @@ def get_env(task, seed):
 
     return env
 
-def main():
+def main(args):
     # Get Atari games.
     benchmark = gym.benchmark_spec('Atari40M')
 
@@ -127,7 +162,10 @@ def main():
     seed = 0 # Use a seed of zero (you may want to randomize the seed!)
     env = get_env(task, seed)
     session = get_session()
-    atari_learn(env, session, num_timesteps=task.max_timesteps)
+    atari_learn(env, session, num_timesteps=task.max_timesteps, exper_name=args.exper_name)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--exper_name', help='experiment name to use for plots and stuff', default=None)
+    args = parser.parse_args()
+    main(args)

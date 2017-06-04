@@ -9,6 +9,9 @@ from collections import namedtuple
 from dqn_utils import *
 from scipy.stats import bernoulli
 from numpy.random import randint
+import matplotlib.pytplot as plt
+from datetime import datetime
+
 
 OptimizerSpec = namedtuple("OptimizerSpec", ["constructor", "kwargs", "lr_schedule"])
 
@@ -134,7 +137,7 @@ def learn(env,
     Q_target = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
 
     # PBUG: axis
-    Y = rew_t_ph + done_mask_ph * gamma * tf.reduce_max(Q_target, axis=1)
+    Y = rew_t_ph + (1-done_mask_ph) * gamma * tf.reduce_max(Q_target, axis=1)
 
     one_hot_act = tf.one_hot(act_t_ph, num_actions)
     Q_a = tf.reduce_sum(Q * one_hot_act, axis=1)
@@ -170,6 +173,7 @@ def learn(env,
     num_param_updates = 0
     mean_episode_reward      = -float('nan')
     best_mean_episode_reward = -float('inf')
+    mean_rewards = []
     last_obs = env.reset()
     LOG_EVERY_N_STEPS = 10000
 
@@ -217,13 +221,17 @@ def learn(env,
             enc_obs = np.expand_dims(replay_buffer.encode_recent_observation(), axis=0)
             action_values = session.run(Q, feed_dict={obs_t_ph: enc_obs})
             a = np.argmax(action_values)
+            print(action_values)
 
             # epsilon-greedy policy
             eps = exploration.value(t)
             if bernoulli.rvs(eps):
+                print('Choosing random action')
+                print('Previous action %d' % a)
                 a = randint(num_actions)
         else:
             a = randint(num_actions)
+        print('Action %d' % a)
 
         # perform the action and get feedback from environment
         last_obs, reward, done, info = env.step(a)
@@ -281,6 +289,13 @@ def learn(env,
             
             # YOUR CODE HERE
 
+            # # Take a set of states used to validate the Q-values
+            # if replay_buffer.num_in_buffer > 1000 and not took_validation_batch:
+            #     obs_valid_batch, act_valid_batch, rew_valid_batch, next_obs_valid_batch, done_mask_valid = replay_buffer.sample(batch_size)
+            #     took_validation_batch = True
+            #     replay_buffer = None
+            #     ReplayBuffer(replay_buffer_size, frame_history_len)
+
             # 3.a
             obs_batch, act_batch, rew_batch, next_obs_batch, done_mask = replay_buffer.sample(batch_size)
 
@@ -325,3 +340,14 @@ def learn(env,
             print("exploration %f" % exploration.value(t))
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
             sys.stdout.flush()
+
+            # Plot the mean rewards
+            mean_rewards.append(mean_episode_reward)
+            plt.plot(mean_rewards)
+            plt.xlabel = 't * %d' % LOG_EVERY_N_STEPS
+            plt.ylabel = 'mean episode reward'
+            plt.title = str(datetime.now())
+            if len(env.observation_space.shape) == 1:
+                plt.savefig('mean_rewards_plot_ram.png')
+            else:
+                plt.savefig('mean_rewards_plot_atari.png')
